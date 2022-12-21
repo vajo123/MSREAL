@@ -118,29 +118,24 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 static int __init stred_init(void)
 {
    int ret = 0;
-	int i=0;
 	
-	sema_init(&sem,1);
+   sema_init(&sem,1);
 
-	//Initialize array
-	for (i=0; i<10; i++)
-		lifo[i] = 0;
-
-   ret = alloc_chrdev_region(&my_dev_id, 0, 1, "lifo");
+   ret = alloc_chrdev_region(&my_dev_id, 0, 1, "stred");
    if (ret){
       printk(KERN_ERR "failed to register char device\n");
       return ret;
    }
    printk(KERN_INFO "char device region allocated\n");
 
-   my_class = class_create(THIS_MODULE, "lifo_class");
+   my_class = class_create(THIS_MODULE, "stred_class");
    if (my_class == NULL){
       printk(KERN_ERR "failed to create class\n");
       goto fail_0;
    }
    printk(KERN_INFO "class created\n");
    
-   my_device = device_create(my_class, NULL, my_dev_id, NULL, "lifo");
+   my_device = device_create(my_class, NULL, my_dev_id, NULL, "stred");
    if (my_device == NULL){
       printk(KERN_ERR "failed to create device\n");
       goto fail_1;
@@ -170,7 +165,7 @@ static int __init stred_init(void)
    return -1;
 }
 
-static void __exit sred_exit(void)
+static void __exit stred_exit(void)
 {
    cdev_del(my_cdev);
    device_destroy(my_class, my_dev_id);
@@ -180,5 +175,5 @@ static void __exit sred_exit(void)
 }
 
 
-module_init(lifo_init);
-module_exit(lifo_exit);
+module_init(stred_init);
+module_exit(stred_exit);
