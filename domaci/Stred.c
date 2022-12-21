@@ -21,12 +21,13 @@ static struct cdev *my_cdev;
 
 DECLARE_WAIT_QUEUE_HEAD(readQ);
 DECLARE_WAIT_QUEUE_HEAD(writeQ);
+
+
 struct semaphore sem;
-
-
-int stred_memory[BUFF_SIZE];
+char stred_memory[BUFF_SIZE];
 int pos = 0;
 int endRead = 0;
+
 
 int stred_open(struct inode *pinode, struct file *pfile);
 int stred_close(struct inode *pinode, struct file *pfile);
@@ -65,10 +66,7 @@ ssize_t stred_read(struct file *pfile, char __user *buffer, size_t length, loff_
 		return 0;
 	}
 	
-	if(pos > 0)
-	{
-		pos --;
-		len = scnprintf(buff, BUFF_SIZE, "%d ", lifo[pos]);
+		len = scnprintf(buff, BUFF_SIZE, "%s\n", stred_memory);
 		ret = copy_to_user(buffer, buff, len);
 		if(ret)
 			return -EFAULT;
@@ -91,27 +89,15 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 	buff[length-1] = '\0';
 
 	ret = sscanf(buff,"%10[^= ]=%99[^\t\n=]", funk, podatak);
-	printk(KERN_INFO "Funkcija je : %s\n", func);
+	printk(KERN_INFO "Funkcija je : %s\n", funk);
 	printk(KERN_INFO "Podatak je : %s\n", podatak);
 	
 
 	if(ret==2)//two parameters parsed in sscanf
 	{
-		if(position >=0 && position <=9)
-		{
-			storage[position] = value; 
-			printk(KERN_INFO "Succesfully wrote value %d in position %d\n", value, position); 
-		}
-		else
-		{
-			printk(KERN_WARNING "Position should be between 0 and 9\n"); 
-		}
-	}
-	else
-	{
-		printk(KERN_WARNING "Wrong command format\nexpected: n,m\n\tn-position\n\tm-value\n");
-	}
-
+		
+		printk(KERN_INFO "Succesfully wrote value n"); 
+		
 	return length;
 }
 
