@@ -27,7 +27,7 @@ struct semaphore sem;
 char stred_memory[BUFF_SIZE];
 int pos = 0;
 int endRead = 0;
-
+int t;
 
 int stred_open(struct inode *pinode, struct file *pfile);
 int stred_close(struct inode *pinode, struct file *pfile);
