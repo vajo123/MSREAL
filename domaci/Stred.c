@@ -24,10 +24,9 @@ DECLARE_WAIT_QUEUE_HEAD(writeQ);
 
 
 struct semaphore sem;
-char stred_memory[BUFF_SIZE];
+char stred[BUFF_SIZE];
 int pos = 0;
 int endRead = 0;
-int b;
 
 int stred_open(struct inode *pinode, struct file *pfile);
 int stred_close(struct inode *pinode, struct file *pfile);
@@ -60,28 +59,36 @@ ssize_t stred_read(struct file *pfile, char __user *buffer, size_t length, loff_
 {
 	int ret;
 	char buff[BUFF_SIZE];
-	long int len = 0;
+	long int len;
 	if (endRead){
 		endRead = 0;
+		printk(KERN_INFO "Succesfully read from stred\n");
 		return 0;
 	}
-	
-		len = scnprintf(buff, BUFF_SIZE, "%s\n", stred_memory);
+	if(pos > 0)
+	{
+		len = scnprintf(buff, BUFF_SIZE, "%s\n", stred);
 		ret = copy_to_user(buffer, buff, len);
 		if(ret)
 			return -EFAULT;
-		printk(KERN_INFO "Succesfully read\n");
 		endRead = 1;
+	}
+	else
+	{
+		printk(KERN_INFO "Stred is empty!\n");
+		return 0;
+	}
 
 	return len;
 }
 
 ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset) 
 {
-	char buff[BUFF_SIZE];
+	char buff[150];
 	char podatak[BUFF_SIZE];
 	char funk[8];
 	int ret;
+	int duzina;
 
 	ret = copy_from_user(buff, buffer, length);
 	if(ret)
@@ -89,15 +96,154 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 	buff[length-1] = '\0';
 
 	ret = sscanf(buff,"%10[^= ]=%99[^\t\n=]", funk, podatak);
-	printk(KERN_INFO "Funkcija je : %s\n", funk);
-	printk(KERN_INFO "Podatak je : %s\n", podatak);
-	
 
-	if(ret==2)//two parameters parsed in sscanf
+	printk(KERN_INFO "Funkcija je :%s\n", funk);
+
+	if(ret == 2)
 	{
+		printk(KERN_INFO "Podatak je :%s\n", podatak);
+	}
+	else if(ret == 1)
+	{
+		printk(KERN_INFO "Nema podatka\n");
+	}
+
+
+//STRING
+	if(!strcmp(funk,"string"))
+	{
+		pos = 0;
+		duzina = strlen(podatak);
+		if(duzina < 100)
+		{
+			strncpy(stred,podatak,duzina);
+			printk(KERN_INFO "Podatak je uspesno ubacen u stred\n");
+			stred[duzina] = '\0';
+			pos = duzina;
+		}
+		else
+		{
+			printk(KERN_WARNING "Podatak je preveliki!!!\n");
+		}
+		printk(KERN_INFO "Funkcija string je gotova!\n");
+	}
+
+
+//CLEAR
+	if(!strcmp(funk,"clear"))
+	{
+		pos = 0;
+		stred[0] = '\0'; 
+		printk(KERN_INFO "Funkcija clear je gotova!\n");
 		
-		printk(KERN_INFO "Succesfully wrote value n"); 
+	} 
+
+
+//SHRINK
+	if(!strcmp(funk,"shrink"))
+	{
+		int i;
+		if(stred[pos-1] == ' ')  
+		{
+			stred[pos-1] = '\0';
+		}
 		
+		if(stred[0] == ' ')
+		{	
+			for(i = 1; i < pos; i++){
+				stred[i-1] = stred[i];
+			}
+		}
+		printk(KERN_INFO "Funkcija shrink je gotova!\n");
+	}
+
+
+//APPEND
+	if(!strcmp(funk,"append"))
+	{
+		int i;	
+		duzina = strlen(podatak);
+		if((pos + duzina) < 100)
+		{
+			for(i = 0; i < duzina; i++)
+			{
+				stred[pos+i] = podatak[i];
+			}
+			pos+=duzina;
+			stred[pos] = '\0';
+		}
+		else
+		{
+			printk(KERN_WARNING "Ne moze se dodati podatak;nema dovoljno slobodnih mesta u baferu!!!\n");
+		}
+		printk(KERN_INFO "Funkcija append je gotova!\n");
+	}
+
+
+//TRUNCATE
+	if(!strcmp(funk,"truncat"))
+	{
+		int i;
+		char *pom;
+		i = simple_strtol(podatak,&pom,10);
+		//printk(KERN_INFO "Broj je :%d\n",i);
+		//printk(KERN_INFO "Srting  je :%s\n",pom);
+		if((pos - i) < 0)
+		{
+			pos = 0;
+			stred[0] = '\0';
+			printk(KERN_INFO "Trazili ste da se obrise vise nego sto ima u baferu!\n");	
+		}
+		else
+		{
+			pos-=i;
+			stred[pos] = '\0';
+			printk(KERN_INFO "Funkcija truncate je dotova!\n");
+		}	
+	}
+
+
+//REMOVE
+	if(!strcmp(funk,"remove"))
+	{
+		int i,j,pom,k,n;
+		int tacno = 0;
+		duzina = strlen(podatak);
+		//printk(KERN_INFO "POS JE:%d\n",pos);
+		for(i = 0; i < pos; i++)
+		{
+			if(podatak[0] == stred[i])
+			{	
+				pom = i+1;
+				for(j = 1; j < duzina; j++)
+				{
+					if(podatak[j] == stred[pom])
+						tacno++;
+					pom++;
+					//printk(KERN_INFO "POM JE:%d\n",pom);
+				}
+				//printk(KERN_INFO "TACNO JE:%d\n",tacno);
+				
+				if(tacno == duzina-1)
+				{	
+					n =pom;
+					//printk(KERN_INFO "N je :%d\n",n);
+
+					for(k = 0; k < (pos - pom + 1); k++)
+					{
+						stred[n - duzina] = stred[n];
+						n++;
+					}
+					pos-=duzina;
+
+					printk(KERN_INFO "Funkcija remove je gotova!\n");
+				}
+				tacno = 0;
+			}			
+		}
+	}
+
+	
 	return length;
 }
 
