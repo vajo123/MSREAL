@@ -19,9 +19,7 @@ static struct class *my_class;
 static struct device *my_device;
 static struct cdev *my_cdev;
 
-DECLARE_WAIT_QUEUE_HEAD(readQ);
 DECLARE_WAIT_QUEUE_HEAD(writeQ);
-
 
 struct semaphore sem;
 char stred[BUFF_SIZE];
@@ -143,6 +141,10 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 	if(!strcmp(funk,"shrink"))
 	{
 		int i;
+		
+		if(down_interruptible(&sem))
+			return -ERESTARTSYS;		
+
 		if(stred[pos-1] == ' ')  
 		{
 			stred[pos-1] = '\0';
@@ -150,11 +152,14 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 		
 		if(stred[0] == ' ')
 		{	
-			for(i = 1; i < pos; i++){
+			for(i = 1; i <= pos; i++){
 				stred[i-1] = stred[i];
 			}
 		}
 		printk(KERN_INFO "Funkcija shrink je gotova!\n");
+
+		up(&sem);
+		wake_up_interruptible(&writeQ);
 	}
 
 
@@ -163,6 +168,18 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 	{
 		int i;	
 		duzina = strlen(podatak);
+		
+		if(down_interruptible(&sem))
+			return -ERESTARTSYS;
+		while((pos + duzina ) >= 100)
+		{
+			up(&sem);
+			if(wait_event_interruptible(writeQ,((pos + duzina) < 100)))
+				return -ERESTARTSYS;
+			if(down_interruptible(&sem))
+				return -ERESTARTSYS;
+		}
+
 		if((pos + duzina) < 100)
 		{
 			for(i = 0; i < duzina; i++)
@@ -176,7 +193,10 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 		{
 			printk(KERN_WARNING "Ne moze se dodati podatak;nema dovoljno slobodnih mesta u baferu!!!\n");
 		}
+
 		printk(KERN_INFO "Funkcija append je gotova!\n");
+		
+		up(&sem);
 	}
 
 
@@ -188,6 +208,10 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 		i = simple_strtol(podatak,&pom,10);
 		//printk(KERN_INFO "Broj je :%d\n",i);
 		//printk(KERN_INFO "Srting  je :%s\n",pom);
+
+   		if(down_interruptible(&sem))
+			return -ERESTARTSYS;
+
 		if((pos - i) < 0)
 		{
 			pos = 0;
@@ -199,7 +223,10 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 			pos-=i;
 			stred[pos] = '\0';
 			printk(KERN_INFO "Funkcija truncate je dotova!\n");
-		}	
+		}
+		
+		up(&sem);
+		wake_up_interruptible(&writeQ);	
 	}
 
 
@@ -210,6 +237,10 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 		int tacno = 0;
 		duzina = strlen(podatak);
 		//printk(KERN_INFO "POS JE:%d\n",pos);
+
+		if(down_interruptible(&sem))
+			return -ERESTARTSYS;
+
 		for(i = 0; i < pos; i++)
 		{
 			if(podatak[0] == stred[i])
@@ -226,7 +257,7 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 				
 				if(tacno == duzina-1)
 				{	
-					n =pom;
+					n = pom;
 					//printk(KERN_INFO "N je :%d\n",n);
 
 					for(k = 0; k < (pos - pom + 1); k++)
@@ -241,7 +272,10 @@ ssize_t stred_write(struct file *pfile, const char __user *buffer, size_t length
 				tacno = 0;
 			}			
 		}
+		
+		up(&sem);
 	}
+	
 
 	
 	return length;
